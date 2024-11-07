@@ -1,0 +1,39 @@
+# pipeline2.yml
+# SOAR Pipeline Configuration for Detecting and Responding to Suspicious Login Attempts
+
+pipeline:
+  name: "Suspicious Login Detection and Response"
+  description: "Automated response for detecting and handling suspicious login attempts."
+  trigger:
+    event_type: "suspicious_login_attempt"
+  actions:
+    - action: "review_login_attempt"
+      description: "Analyze login attempt for risk factors (e.g., unusual location, time)."
+      parameters:
+        user_id: "{{ event.user_id }}"
+      output: login_review_status
+
+    - action: "disable_user_account"
+      description: "Disable the user account if login is deemed high-risk."
+      parameters:
+        user_id: "{{ event.user_id }}"
+      conditions:
+        - condition: "login_review_status == 'high_risk'"
+
+    - action: "send_alert"
+      description: "Notify the security team about the suspicious login attempt."
+      parameters:
+        message: |
+          ALERT: Suspicious login detected for user {{ event.user_id }}.
+          Action Taken: Account disabled
+          Login Location: {{ event.location }}
+          Timestamp: {{ event.timestamp }}
+        recipients:
+          - "security_team@example.com"
+
+  conditions:
+    - condition: "login_review_status == 'low_risk'"
+      action: "log_event"
+      description: "Log low-risk login attempts for record-keeping"
+      parameters:
+        message: "Low-risk login attempt recorded for user {{ event.user_id }}."
