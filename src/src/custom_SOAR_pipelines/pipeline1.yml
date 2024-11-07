@@ -1,0 +1,37 @@
+# pipeline1.yml
+# SOAR Pipeline Configuration for Automated IP Blocking and Alerting
+
+pipeline:
+  name: "IP Block and Alert"
+  description: "Automated response for blocking suspicious IPs and notifying the security team."
+  trigger:
+    event_type: "suspicious_ip_detected"
+  actions:
+    - action: "block_ip"
+      description: "Block the detected suspicious IP on the firewall."
+      parameters:
+        ip_address: "{{ event.ip_address }}"
+      output: ip_block_status
+
+    - action: "send_alert"
+      description: "Send an alert to the security team with details of the blocked IP."
+      parameters:
+        message: |
+          ALERT: Suspicious IP {{ event.ip_address }} has been automatically blocked.
+          Reason: {{ event.reason }}
+          Timestamp: {{ event.timestamp }}
+        recipients:
+          - "security_team@example.com"
+
+  conditions:
+    - condition: "ip_block_status == 'success'"
+      action: "log_event"
+      description: "Log successful IP block action"
+      parameters:
+        message: "Successfully blocked IP {{ event.ip_address }} on firewall."
+
+    - condition: "ip_block_status != 'success'"
+      action: "retry_block"
+      description: "Retry IP block if it fails"
+      parameters:
+        retry_count: 3
