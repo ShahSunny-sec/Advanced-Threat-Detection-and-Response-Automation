@@ -1,0 +1,53 @@
+# ansible_playbook.yml
+---
+- name: Automated Threat Response Playbook
+  hosts: all
+  become: true
+  vars:
+    ip_to_block: "192.168.1.100"  # Replace with the suspicious IP you want to block
+    suspicious_service: "apache2" # Replace with the service you want to monitor or restart
+
+  tasks:
+    - name: Block Suspicious IP Address
+      ansible.builtin.iptables:
+        chain: INPUT
+        source: "{{ ip_to_block }}"
+        jump: DROP
+        comment: "Blocked due to suspicious activity"
+      when: ip_to_block is defined
+      register: ip_block_result
+
+    - name: Log IP Block Action
+      ansible.builtin.debug:
+        msg: "Blocked IP address {{ ip_to_block }}: {{ ip_block_result }}"
+
+    - name: Check Status of Suspicious Service
+      ansible.builtin.systemd:
+        name: "{{ suspicious_service }}"
+        state: started
+        enabled: true
+      register: service_status
+
+    - name: Restart Suspicious Service if Not Active
+      ansible.builtin.systemd:
+        name: "{{ suspicious_service }}"
+        state: restarted
+      when: service_status.status != "running"
+
+    - name: Collect System Logs (Last 100 lines)
+      ansible.builtin.shell: "tail -n 100 /var/log/syslog"
+      register: log_output
+
+    - name: Save Log Output to File
+      ansible.builtin.copy:
+        content: "{{ log_output.stdout }}"
+        dest: "/var/log/response_log_{{ inventory_hostname }}.txt"
+      delegate_to: localhost
+
+    - name: Report Summary of Actions Taken
+      ansible.builtin.debug:
+        msg: |
+          Threat Response Summary:
+          - Blocked IP: {{ ip_to_block }}
+          - Service Checked: {{ suspicious_service }} (restarted if inactive)
+          - Logs saved to: /var/log/response_log_{{ inventory_hostname }}.txt
